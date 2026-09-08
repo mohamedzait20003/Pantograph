@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: Pantograph@V1/User
+      POSTGRES_PASSWORD: Pantograph@V1__Assessment
+      POSTGRES_DB: Pantograph
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

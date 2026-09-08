@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+evidence/**/trace.zip
+playwright-report/
+.turbo/
+*.log

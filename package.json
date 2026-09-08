@@ -1,0 +1,37 @@
+{
+  "name": "pantograph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Record-once, replay-many UI automation for legacy applications with no API.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n target,api,worker,web -c blue,green,yellow,magenta \"pnpm --filter target dev\" \"pnpm --filter api dev\" \"pnpm --filter worker dev\" \"pnpm --filter web dev\"",
+    "target": "pnpm --filter target dev",
+    "target:b": "cross-env TENANT=b PORT=4001 pnpm --filter target dev",
+    "discover": "pnpm --filter worker discover",
+    "replay": "pnpm --filter worker replay",
+    "tools:demo": "pnpm --filter worker tools:demo",
+    "capability:export": "pnpm --filter api capability:export",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "eslint": "^10.9.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  }
+}
