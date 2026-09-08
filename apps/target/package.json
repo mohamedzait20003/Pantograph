@@ -1,5 +1,5 @@
 {
-  "name": "@pantograph/api",
+  "name": "@pantograph/target",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@pantograph/core": "workspace:*"
+    "express": "^4.21.1",
+    "ejs": "^3.1.10"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
   }
 }
