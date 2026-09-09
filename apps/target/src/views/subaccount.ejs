@@ -1,0 +1,80 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<%- include('_head', { title: title }) %>
+</head>
+<body class="brand-<%= brand.name === 'Calder Savings Bank' ? 'b' : 'a' %>">
+<table class="g1" cellpadding="0" cellspacing="0" border="0">
+<tr>
+  <td class="c1">
+    <table class="g1" cellpadding="0" cellspacing="0" border="0">
+      <tr><td class="r1"><%= brand.name %> &nbsp;|&nbsp; <%= brand.product %></td></tr>
+      <tr><td class="r2">Open Sub-Account</td></tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td class="c2">
+
+<% if (errors.length > 0) { %>
+    <table cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="e1">
+<% errors.forEach(function (message) { %>
+          <div><%= message %></div>
+<% }) %>
+        </td>
+      </tr>
+    </table>
+    <br>
+<% } %>
+
+    <table class="t1" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="p1">
+          <table class="t2" cellpadding="0" cellspacing="0" border="0">
+            <tr><th scope="row">Member</th><td><%= member.name %> (<%= member.id %>)</td></tr>
+          </table>
+          <br>
+          <form method="post" action="/member/<%= member.id %>/subaccount<%= failQuery %>">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="f1"><label for="k1">Sub-Account Type</label></td>
+                <td class="f2">
+                  <select class="x1" id="k1" name="type">
+                    <option value="">-- Select --</option>
+<% subaccountTypes.forEach(function (option) { %>
+                    <option value="<%= option %>"<%= values.type === option ? ' selected' : '' %>><%= option %></option>
+<% }) %>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td class="f1"><label for="k2">Nickname</label></td>
+                <td class="f2"><input class="x1" type="text" id="k2" name="nickname" size="28" value="<%= values.nickname %>"></td>
+              </tr>
+              <tr>
+                <td class="f1"><label for="k3">Initial Deposit</label></td>
+                <td class="f2"><input class="x1" type="text" id="k3" name="deposit" size="14" value="<%= values.deposit %>"></td>
+              </tr>
+              <tr>
+                <td class="f1">&nbsp;</td>
+                <td class="f2"><button class="b1" type="submit">Create Sub-Account</button></td>
+              </tr>
+            </table>
+          </form>
+        </td>
+      </tr>
+    </table>
+
+    <br>
+
+    <form method="get" action="/member/<%= member.id %>">
+      <button class="b1" type="submit">Cancel</button>
+    </form>
+
+  </td>
+</tr>
+</table>
+</body>
+</html>

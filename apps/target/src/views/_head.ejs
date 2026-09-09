@@ -1,0 +1,74 @@
+<%#
+  Shared <head> contents. Included by every content view.
+
+  The class names below are deliberately meaningless (c1, r2, g1, t3, b1...).
+  There is no stylesheet vocabulary to reason about and no data-testid
+  anywhere, so a CSS selector written against this app carries no meaning and
+  breaks the moment the table nesting shifts. The accessibility tree is the
+  only stable surface — that is the point.
+%>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title><%= title %> - <%= brand.name %></title>
+<style type="text/css">
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #c6cad2;
+    font-family: Verdana, Geneva, Arial, sans-serif;
+    font-size: 11px;
+    color: #101010;
+  }
+  a { color: #12395c; }
+  .g1 { width: 100%; border-collapse: collapse; }
+  .c1 { padding: 0; vertical-align: top; }
+  .c2 { padding: 12px; vertical-align: top; }
+  .brand-a .r1 {
+    background: #1f4e79;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 5px 8px;
+    white-space: nowrap;
+  }
+  .brand-b .r1 {
+    background: #6b2d5c;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 5px 8px;
+    white-space: nowrap;
+  }
+  .r2 {
+    background: #a8aeba;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-top: 1px solid #ffffff;
+    border-bottom: 1px solid #6f7480;
+  }
+  .t1 { border-collapse: collapse; background: #e4e7ec; border: 2px outset #f2f3f6; }
+  .p1 { padding: 10px; vertical-align: top; }
+  .p2 { padding: 4px 0 8px 0; vertical-align: top; }
+  .t2 { border-collapse: collapse; }
+  .t2 th { text-align: left; font-weight: bold; padding: 2px 16px 2px 0; white-space: nowrap; vertical-align: top; }
+  .t2 td { padding: 2px 0; vertical-align: top; }
+  .t3 { border-collapse: collapse; background: #ffffff; }
+  .t3 th { background: #aeb4c0; border: 1px solid #767c88; text-align: left; font-weight: bold; padding: 3px 10px; white-space: nowrap; }
+  .t3 td { border: 1px solid #9aa0ac; padding: 3px 10px; }
+  .f1 { padding: 3px 10px 3px 0; text-align: right; white-space: nowrap; vertical-align: middle; }
+  .f2 { padding: 3px 0; vertical-align: middle; }
+  .x1 { font-family: Verdana, Arial, sans-serif; font-size: 11px; border: 2px inset #dcdcdc; padding: 1px 3px; }
+  .b1 {
+    font-family: Verdana, Arial, sans-serif;
+    font-size: 11px;
+    padding: 2px 12px;
+    border: 2px outset #d8d8d8;
+    background: #d8d8d8;
+    color: #101010;
+    cursor: pointer;
+  }
+  .e1 { border: 2px solid #8a0000; background: #ffe6e6; color: #6d0000; padding: 6px 10px; font-weight: bold; }
+  .i1 { border: 3px double #3a3a3a; background: #fffce0; padding: 14px; }
+  .w1 { color: #4a4a4a; }
+  .nb { background: #dfe2e8; }
+  .n1 { background: #dfe2e8; border-right: 1px solid #8b909b; }
+  .n2 { padding: 4px 8px; border-bottom: 1px solid #c2c6cf; }
+</style>
