@@ -1,4 +1,4 @@
-# ADR 002 — Irreversible actions require confirmation, not prohibition
+# ADR 003 — Irreversible actions require confirmation, not prohibition
 
 **Status:** Accepted
 **Date:** 2026-09-09
