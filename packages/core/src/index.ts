@@ -7,3 +7,4 @@ export * from './step.js';
 export * from './artifact.js';
 export * from './result.js';
 export * from './policy.js';
+export * from './surface.js';
