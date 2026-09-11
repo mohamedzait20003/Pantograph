@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The worker ships functions that run inside the page, so it needs DOM
+    // types. `packages/core` deliberately does not - that is the seam.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src", "test"]
+}
