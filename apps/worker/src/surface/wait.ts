@@ -1,4 +1,4 @@
-import { errors, type Page } from 'playwright';
+import { errors, type Frame, type Page, type Request } from 'playwright';
 
 /**
  * The waiting strategy, as one named seam instead of `waitForTimeout` calls
@@ -47,13 +47,21 @@ export async function waitForStable(page: Page, timeoutMs = DEFAULT_TIMEOUT_MS):
  * Call it *before* the action, await the returned function *after*. Playwright
  * no longer waits for click-initiated navigations itself, so a click that
  * submits a form returns before the new document exists; the next resolve
- * would then run against the old one. Arming a listener first means a fast
+ * would then run against the old one. Arming listeners first means a fast
  * navigation cannot be missed.
  *
+ * Two signals, because they answer different questions. The `request` event
+ * for a navigation request fires the instant a form submits - that is how we
+ * learn a navigation has *begun*, and it arrives immediately even when the
+ * server takes six seconds to answer. `framenavigated` fires when the new
+ * document *commits*, which is when it is safe to wait for load. Listening
+ * only for the commit, as a first version of this did, misses every slow
+ * server: the grace window expires while the request is still in flight and
+ * the engine carries on against the old page.
+ *
  * The grace window is the one bounded fixed cost in this file, paid only on
- * actions that turn out not to navigate. It is a cap on how long to wait for
- * a navigation to *begin*, not a sleep that always elapses - the moment a
- * frame navigates, the race resolves and the full load wait takes over.
+ * actions that turn out not to navigate. It caps how long to wait for a
+ * navigation to *begin*; once one has begun, the full timeout applies.
  */
 export function armSettle(
   page: Page,
@@ -62,25 +70,47 @@ export function armSettle(
   const graceMs = options.graceMs ?? 250;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  let detach: () => void = () => {};
-  const navigated = new Promise<boolean>((resolve) => {
-    const handler = (): void => resolve(true);
-    page.on('framenavigated', handler);
-    detach = () => page.off('framenavigated', handler);
+  const detachers: (() => void)[] = [];
+
+  const started = new Promise<boolean>((resolve) => {
+    const onRequest = (request: Request): void => {
+      if (request.isNavigationRequest()) resolve(true);
+    };
+    page.on('request', onRequest);
+    detachers.push(() => page.off('request', onRequest));
+  });
+
+  const committed = new Promise<void>((resolve) => {
+    const onNavigated = (_frame: Frame): void => resolve();
+    page.on('framenavigated', onNavigated);
+    detachers.push(() => page.off('framenavigated', onNavigated));
   });
 
   return async () => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const grace = new Promise<boolean>((resolve) => {
-      timer = setTimeout(() => resolve(false), graceMs);
-    });
+    const deadline = Date.now() + timeoutMs;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    let commitTimer: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const sawNavigation = await Promise.race([navigated, grace]);
-      if (sawNavigation) await waitForStable(page, timeoutMs);
+      const grace = new Promise<boolean>((resolve) => {
+        graceTimer = setTimeout(() => resolve(false), graceMs);
+      });
+      const sawNavigation = await Promise.race([started, grace]);
+      if (!sawNavigation) return;
+
+      const commitTimeout = new Promise<never>((_, reject) => {
+        commitTimer = setTimeout(
+          () => reject(new errors.TimeoutError(`navigation did not commit within ${timeoutMs}ms`)),
+          Math.max(1, deadline - Date.now()),
+        );
+      });
+      await Promise.race([committed, commitTimeout]);
+
+      await waitForStable(page, Math.max(1, deadline - Date.now()));
     } finally {
-      if (timer !== undefined) clearTimeout(timer);
-      detach();
+      if (graceTimer !== undefined) clearTimeout(graceTimer);
+      if (commitTimer !== undefined) clearTimeout(commitTimer);
+      for (const detach of detachers) detach();
     }
   };
 }
