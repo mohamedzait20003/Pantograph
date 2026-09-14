@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -181,6 +181,26 @@ export class PlaywrightWebSurface implements Surface {
    */
   pageForHandoff(): Page {
     return this.page;
+  }
+
+  /**
+   * Tracing is surface-specific evidence and lives here, not on `Surface`.
+   * The replay engine does not know traces exist; the process that owns the
+   * surface starts one before a run and hands the bytes to the evidence
+   * store after. A UIA surface would produce an event log the same way.
+   */
+  async startTracing(): Promise<void> {
+    await this.context.tracing.start({ screenshots: true, snapshots: true });
+  }
+
+  async stopTracing(): Promise<Uint8Array> {
+    const file = path.join(tmpdir(), `pantograph-trace-${process.pid}-${Date.now()}.zip`);
+    await this.context.tracing.stop({ path: file });
+    try {
+      return await readFile(file);
+    } finally {
+      await rm(file, { force: true });
+    }
   }
 
   async close(): Promise<void> {
