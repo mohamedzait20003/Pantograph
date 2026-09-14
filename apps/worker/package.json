@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "replay": "tsx src/replay/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

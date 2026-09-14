@@ -14,7 +14,7 @@
     "target": "pnpm --filter target dev",
     "target:b": "cross-env TENANT=b PORT=4001 pnpm --filter target dev",
     "discover": "pnpm --filter worker discover",
-    "replay": "pnpm --filter worker replay",
+    "replay": "pnpm -C apps/worker replay",
     "tools:demo": "pnpm --filter worker tools:demo",
     "capability:export": "pnpm --filter api capability:export",
     "db:generate": "pnpm --filter api db:generate",

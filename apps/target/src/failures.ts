@@ -58,6 +58,14 @@ export const failureMiddleware: RequestHandler = (req, res, next) => {
   const mode = activeFailure(req);
   res.locals['failQuery'] = failQuery(req);
 
+  // The frameset shell is exempt. It carries the mode into the content frame
+  // via `failQuery` instead, so `/?fail=x` exercises the condition on the
+  // screen a person actually sees - and `slow_load` is paid once, not twice.
+  if (req.path === '/') {
+    next();
+    return;
+  }
+
   switch (mode) {
     case 'slow_load':
       setTimeout(next, SLOW_LOAD_MS);
