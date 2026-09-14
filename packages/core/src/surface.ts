@@ -107,7 +107,19 @@ export type ResolutionAttempt = {
  * anchor moved. See docs/adr/001-locator-bundles.md.
  */
 export type Resolution =
-  | { found: true; handle: unknown; tier: number; candidateIndex: number }
+  | {
+      found: true;
+      handle: unknown;
+      tier: number;
+      candidateIndex: number;
+      /**
+       * The higher-tier candidates that missed before this one matched. Empty
+       * when the first candidate hit. This is the other half of drift
+       * telemetry: "resolved at tier 4" is a symptom, "tier 1 found no match
+       * for name 'Member ID'" is the diagnosis.
+       */
+      attempted: ResolutionAttempt[];
+    }
   | { found: false; attempted: ResolutionAttempt[] };
 
 /**
