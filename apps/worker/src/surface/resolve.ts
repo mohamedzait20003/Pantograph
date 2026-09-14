@@ -88,47 +88,65 @@ export async function resolveBundle(
   }
 
   for (const [candidateIndex, candidate] of bundle.candidates.entries()) {
-    if (candidate.by === 'coordinates') {
-      if (options.allowCoordinates !== true) {
-        attempted.push({
-          tier: candidate.tier,
-          by: candidate.by,
-          detail: 'skipped: coordinate targeting requires explicit opt-in',
-        });
-        continue;
-      }
-
-      const handle: PointHandle = { kind: 'point', x: candidate.x, y: candidate.y };
-      return { found: true, handle, tier: candidate.tier, candidateIndex };
-    }
-
-    let outcome: CandidateOutcome;
-    try {
-      outcome = await withTimeout(tryCandidate(frame, candidate), timeoutMs);
-    } catch (error) {
-      outcome = {
-        matches: 0,
-        detail:
-          error instanceof CandidateTimeout
-            ? `timed out after ${timeoutMs}ms`
-            : `error: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-
-    if (outcome.matches === 1 && outcome.handle !== undefined) {
-      return { found: true, handle: outcome.handle, tier: candidate.tier, candidateIndex };
-    }
-
-    attempted.push({
-      tier: candidate.tier,
-      by: candidate.by,
-      detail:
-        outcome.detail ??
-        (outcome.matches === 0 ? 'no match' : `ambiguous: ${outcome.matches} matches`),
-    });
+    const result = await resolveCandidate(frame, candidate, options, timeoutMs);
+    if (result.found) return { ...result, candidateIndex, attempted };
+    attempted.push(result.attempt);
   }
 
   return { found: false, attempted };
+}
+
+type CandidateResolution =
+  | { found: true; handle: unknown; tier: number }
+  | { found: false; attempt: ResolutionAttempt };
+
+async function resolveCandidate(
+  frame: Frame,
+  candidate: LocatorCandidate,
+  options: ResolveOptions,
+  timeoutMs: number,
+): Promise<CandidateResolution> {
+  if (candidate.by === 'coordinates') {
+    if (options.allowCoordinates === true) {
+      return { found: true, handle: { kind: 'point', x: candidate.x, y: candidate.y }, tier: candidate.tier };
+    }
+    return {
+      found: false,
+      attempt: {
+        tier: candidate.tier,
+        by: candidate.by,
+        detail: 'skipped: coordinate targeting requires explicit opt-in',
+      },
+    };
+  }
+
+  let outcome: CandidateOutcome;
+  try {
+    outcome = await withTimeout(tryCandidate(frame, candidate), timeoutMs);
+  } catch (error) {
+    outcome = candidateError(error, timeoutMs);
+  }
+
+  if (outcome.matches === 1 && outcome.handle !== undefined) {
+    return { found: true, handle: outcome.handle, tier: candidate.tier };
+  }
+  return {
+    found: false,
+    attempt: {
+      tier: candidate.tier,
+      by: candidate.by,
+      detail: outcome.detail ?? describeMatchCount(outcome.matches),
+    },
+  };
+}
+
+function candidateError(error: unknown, timeoutMs: number): CandidateOutcome {
+  if (error instanceof CandidateTimeout) return { matches: 0, detail: `timed out after ${timeoutMs}ms` };
+  return { matches: 0, detail: `error: ${error instanceof Error ? error.message : String(error)}` };
+}
+
+function describeMatchCount(matches: number): string {
+  return matches === 0 ? 'no match' : `ambiguous: ${matches} matches`;
 }
 
 type CandidateOutcome = {
@@ -144,9 +162,8 @@ async function tryCandidate(
   if (candidate.by === 'cell') {
     const cells = await findCells(frame, candidate.row, candidate.column);
     const first = cells[0];
-    return cells.length === 1 && first !== undefined
-      ? { matches: 1, handle: first }
-      : { matches: cells.length };
+    if (cells.length === 1 && first !== undefined) return { matches: 1, handle: first };
+    return { matches: cells.length };
   }
 
   const locator = buildLocator(frame, candidate);
@@ -195,24 +212,27 @@ function buildLocator(
  * rather than with `tr`/`td` locators, because those DOM collections belong to
  * *this* table only. A CSS descendant query on a layout table would also match
  * the rows of the data table nested inside it, and the indices would be off.
+ *
+ * One round trip for the whole frame. A first version evaluated per table,
+ * which on a page with five layout tables cost fifteen instrumented round
+ * trips and blew the candidate budget whenever tracing was on - reporting a
+ * tier 4 resolution, and therefore drift, that was not real.
  */
 async function findCells(
   frame: Frame,
   row: string,
   column: string,
 ): Promise<ElementHandle<HTMLElement | SVGElement>[]> {
-  const tables = frame.locator('table');
-  const total = await tables.count();
+  const matches = await frame.evaluateHandle(locateCellsInFrame, { row, column });
   const hits: ElementHandle<HTMLElement | SVGElement>[] = [];
 
-  for (let index = 0; index < total; index += 1) {
-    const matches = await tables.nth(index).evaluateHandle(locateCellsInTable, { row, column });
-
+  try {
     for (const value of (await matches.getProperties()).values()) {
       const element = value.asElement();
       if (element) hits.push(element);
       else await value.dispose();
     }
+  } finally {
     await matches.dispose();
   }
 
@@ -220,50 +240,55 @@ async function findCells(
 }
 
 /**
- * Runs inside the browser. Must be self-contained: no closures over module
- * scope, because Playwright serializes the function source and ships it over.
+ * Runs inside the browser. Playwright serializes this function's source with
+ * `toString()` and evals it in the page, so it must be self-contained: no
+ * closures over module scope, and - less obviously - NO INNER NAMED FUNCTIONS.
+ *
+ * tsx compiles with esbuild's `keepNames`, which rewrites `const f = () => ..`
+ * into `const f = __name(() => .., "f")`. The `__name` helper exists in the
+ * Node bundle and not in the page, so a `normalize` helper here threw
+ * `ReferenceError: __name is not defined` in production while every Vitest
+ * run (a different esbuild config) passed. The normalization is therefore
+ * inlined. A callback passed directly as an argument is safe; only functions
+ * that would get an inferred name are wrapped.
  */
-function locateCellsInTable(
-  table: HTMLElement | SVGElement,
-  args: { row: string; column: string },
-): Element[] {
-  if (!(table instanceof HTMLTableElement)) return [];
-
-  const normalize = (text: string | null): string =>
-    (text ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-
-  const wantRow = normalize(args.row);
-  const wantColumn = normalize(args.column);
-  const rows = Array.from(table.rows);
-
-  // The column index comes from the first row that has a matching <th>.
-  let columnIndex = -1;
-  let headerRowIndex = -1;
-  for (let r = 0; r < rows.length; r += 1) {
-    const cells = Array.from(rows[r]?.cells ?? []);
-    const found = cells.findIndex(
-      (cell) => cell.tagName === 'TH' && normalize(cell.textContent) === wantColumn,
-    );
-    if (found !== -1) {
-      columnIndex = found;
-      headerRowIndex = r;
-      break;
-    }
-  }
-  if (columnIndex === -1) return [];
-
-  // Every other row whose first cell is the row header we want. Prefer
-  // <th scope="row">, accept a plain first cell; report all so the caller can
-  // treat more than one as ambiguous rather than picking.
+function locateCellsInFrame(args: { row: string; column: string }): Element[] {
+  const wantRow = args.row.replace(/\s+/g, ' ').trim().toLowerCase();
+  const wantColumn = args.column.replace(/\s+/g, ' ').trim().toLowerCase();
   const found: Element[] = [];
-  for (let r = 0; r < rows.length; r += 1) {
-    if (r === headerRowIndex) continue;
-    const cells = Array.from(rows[r]?.cells ?? []);
-    const first = cells[0];
-    if (!first || normalize(first.textContent) !== wantRow) continue;
 
-    const target = cells[columnIndex];
-    if (target) found.push(target);
+  for (const table of Array.from(document.querySelectorAll('table'))) {
+    const rows = Array.from(table.rows);
+    const header = rows
+      .map((row, index) => ({ row, index }))
+      .find(({ row }) =>
+        Array.from(row.cells).some(
+          (cell) =>
+            cell.tagName === 'TH' &&
+            (cell.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase() === wantColumn,
+        ),
+      );
+    if (!header) continue;
+
+    const columnIndex = Array.from(header.row.cells).findIndex(
+      (cell) =>
+        cell.tagName === 'TH' &&
+        (cell.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase() === wantColumn,
+    );
+    if (columnIndex === -1) continue;
+
+    // Every other row whose first cell is the row header we want. Prefer
+    // <th scope="row">, accept a plain first cell; report all so the caller
+    // can treat more than one as ambiguous rather than picking.
+    const targets = rows
+      .filter(
+        (row, index) =>
+          index !== header.index &&
+          (row.cells[0]?.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase() === wantRow,
+      )
+      .map((row) => row.cells[columnIndex])
+      .filter((target): target is HTMLTableCellElement => target !== undefined);
+    found.push(...targets);
   }
 
   return found;
